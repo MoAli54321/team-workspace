@@ -1,0 +1,23 @@
+# Frontend
+node_modules/
+dist/
+
+# Java / Spring Boot
+target/
+*.class
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
