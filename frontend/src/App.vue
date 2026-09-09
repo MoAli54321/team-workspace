@@ -1,47 +1,47 @@
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
-import TheWelcome from './components/TheWelcome.vue'
+import { ref, onMounted } from 'vue'
+
+const backendStatus = ref('Checking backend...')
+
+onMounted(async () => {
+  try {
+    const response = await fetch('/api/health')
+
+    if (!response.ok) {
+      throw new Error('Backend request failed')
+    }
+
+    backendStatus.value = await response.text()
+  } catch (error) {
+    backendStatus.value = 'Backend is not available'
+    console.error(error)
+  }
+})
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="./assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-    </div>
-  </header>
-
   <main>
-    <TheWelcome />
+    <h1>Team Workspace</h1>
+
+    <h2>Backend Status</h2>
+
+    <p>{{ backendStatus }}</p>
   </main>
 </template>
 
 <style scoped>
-header {
-  line-height: 1.5;
+main {
+  max-width: 800px;
+  margin: 80px auto;
+  padding: 20px;
+  font-family: Arial, sans-serif;
 }
 
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
+h1 {
+  font-size: 2.5rem;
 }
 
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
+h2 {
+  margin-top: 40px;
 }
 </style>
