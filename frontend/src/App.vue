@@ -10,6 +10,50 @@ const description = ref('')
 const status = ref('TODO')
 const priority = ref('MEDIUM')
 
+
+
+const editingTaskId = ref(null)
+const editTitle = ref('')
+const editDescription = ref('')
+
+function startEdit(task) {
+  editingTaskId.value = task.id
+  editTitle.value = task.title
+  editDescription.value = task.description
+}
+
+function cancelEdit() {
+  editingTaskId.value = null
+  editTitle.value = ''
+  editDescription.value = ''
+}
+
+async function saveTask(task) {
+  try {
+    const response = await fetch(`/api/tasks/${task.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: editTitle.value,
+        description: editDescription.value,
+        status: task.status,
+        priority: task.priority,
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Task konnte nicht bearbeitet werden')
+    }
+
+    cancelEdit()
+    await loadTasks()
+  } catch (err) {
+    error.value = err.message
+  }
+}
+
 async function loadTasks() {
   try {
     loading.value = true
@@ -190,10 +234,34 @@ onMounted(loadTasks)
           :key="task.id"
           class="task-card"
         >
-          <div>
-            <h3>{{ task.title }}</h3>
+            <div>
+              <div v-if="editingTaskId === task.id">
+                <input
+                  v-model="editTitle"
+                  type="text"
+              />
 
-            <p>{{ task.description }}</p>
+              <textarea
+                v-model="editDescription"
+              ></textarea>
+
+              <button @click="saveTask(task)">
+              Save
+              </button>
+
+              <button @click="cancelEdit">
+              Cancel
+              </button>
+            </div>
+
+            <div v-else>
+              <h3>{{ task.title }}</h3>
+              <p>{{ task.description }}</p>
+
+              <button @click="startEdit(task)">
+              Edit
+              </button>
+            </div>
 
             <div class="details">
               <select
