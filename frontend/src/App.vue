@@ -65,6 +65,55 @@ async function createTask() {
     error.value = err.message
   }
 }
+async function updateTaskStatus(task, newStatus) {
+  try {
+    const response = await fetch(`/api/tasks/${task.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: task.title,
+        description: task.description,
+        status: newStatus,
+        priority: task.priority,
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Status konnte nicht geändert werden')
+    }
+
+    await loadTasks()
+  } catch (err) {
+    error.value = err.message
+  }
+}
+
+async function updateTaskPriority(task, newPriority) {
+  try {
+    const response = await fetch(`/api/tasks/${task.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: newPriority,
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Priorität konnte nicht geändert werden')
+    }
+
+    await loadTasks()
+  } catch (err) {
+    error.value = err.message
+  }
+}
 
 async function deleteTask(id) {
   try {
@@ -147,8 +196,22 @@ onMounted(loadTasks)
             <p>{{ task.description }}</p>
 
             <div class="details">
-              <span>{{ task.status }}</span>
-              <span>{{ task.priority }}</span>
+              <select
+                :value="task.status"
+                @change="updateTaskStatus(task, $event.target.value)"
+>
+                <option value="TODO">TODO</option>
+                <option value="IN_PROGRESS">IN PROGRESS</option>
+                <option value="DONE">DONE</option>
+              </select>
+              <select
+                :value="task.priority"
+                @change="updateTaskPriority(task, $event.target.value)"
+> 
+                <option value="LOW">LOW</option>
+                <option value="MEDIUM">MEDIUM</option>
+                <option value="HIGH">HIGH</option>
+              </select>
             </div>
           </div>
 
