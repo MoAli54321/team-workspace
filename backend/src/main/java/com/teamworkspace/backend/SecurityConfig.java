@@ -29,7 +29,11 @@ public class SecurityConfig {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/tasks", "/api/tasks/**").authenticated()
+                        .requestMatchers(
+                                "/api/tasks", "/api/tasks/**",
+                                "/api/projects", "/api/projects/**",
+                                "/api/teams", "/api/teams/**"
+                        ).authenticated()
                         // Login, Registrierung und Health-Check bleiben öffentlich erreichbar.
                         .anyRequest().permitAll())
                 // Liest Authorization: Bearer <token> und nutzt den JwtDecoder (JwtService).

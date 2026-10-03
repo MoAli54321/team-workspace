@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { authGuard } from '../src/router/authGuard.js'
 import { useAuthStore } from '../src/stores/auth.js'
-import { requestTasks } from '../src/api/tasks.js'
+import { requestTeams } from '../src/api/teams.js'
 
 const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage')
 let savedValues
@@ -45,6 +45,8 @@ function makeRouter() {
       { path: '/login', name: 'login', component },
       { path: '/register', name: 'register', component },
       { path: '/dashboard', name: 'dashboard', component, meta: { requiresAuth: true } },
+      { path: '/teams/:teamId/projects', name: 'team-projects', component, meta: { requiresAuth: true } },
+      { path: '/projects/:projectId/tasks', name: 'project-tasks', component, meta: { requiresAuth: true } },
     ],
   })
   router.beforeEach(authGuard)
@@ -56,6 +58,14 @@ test('an anonymous direct dashboard visit redirects to login', async () => {
   await router.push('/dashboard')
   assert.equal(router.currentRoute.value.name, 'login')
 })
+
+for (const path of ['/teams/2/projects', '/projects/1/tasks']) {
+  test(`an anonymous direct visit to ${path} redirects to login`, async () => {
+    const router = makeRouter()
+    await router.push(path)
+    assert.equal(router.currentRoute.value.name, 'login')
+  })
+}
 
 for (const path of ['/login', '/register']) {
   test(`a restored active session redirects ${path} to the dashboard`, async () => {
@@ -124,7 +134,7 @@ test('an API-rejected session can reach login instead of being redirected back',
   await router.push('/dashboard')
   mock.method(globalThis, 'fetch', async () => new Response(null, { status: 401 }))
 
-  await assert.rejects(requestTasks(), /Bitte melde dich erneut an/)
+  await assert.rejects(requestTeams(), /Bitte melde dich erneut an/)
   await router.replace({ name: 'login' })
 
   assert.equal(router.currentRoute.value.name, 'login')

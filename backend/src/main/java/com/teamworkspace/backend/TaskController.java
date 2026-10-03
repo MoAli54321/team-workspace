@@ -2,63 +2,119 @@ package com.teamworkspace.backend;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
-/**
- * REST-Schnittstelle für Aufgaben: nimmt HTTP-Anfragen entgegen und nutzt das Repository
- * für Datenbankzugriffe. Spring wandelt zurückgegebene Aufgaben automatisch in JSON um.
- */
 @RestController
-@RequestMapping("/api/tasks")
 public class TaskController {
 
     private final TaskRepository taskRepository;
+    private final ProjectRepository projectRepository;
+    private final TeamMemberRepository teamMemberRepository;
 
-    // Spring übergibt das Repository beim Erzeugen des Controllers (Dependency Injection).
-    public TaskController(TaskRepository taskRepository) {
+    public TaskController(
+            TaskRepository taskRepository,
+            ProjectRepository projectRepository,
+            TeamMemberRepository teamMemberRepository) {
         this.taskRepository = taskRepository;
+        this.projectRepository = projectRepository;
+        this.teamMemberRepository = teamMemberRepository;
     }
 
-    // GET /api/tasks liefert alle gespeicherten Aufgaben als Liste.
-    @GetMapping
-    public List<Task> getAllTasks() {
-        return taskRepository.findAll();
+    @GetMapping("/api/projects/{projectId}/tasks")
+    public List<Task> getProjectTasks(
+            @PathVariable Long projectId,
+            @AuthenticationPrincipal Jwt jwt) {
+        getProjectForMember(projectId, jwt);
+        return taskRepository.findByProjectId(projectId);
     }
 
-    // POST /api/tasks: @RequestBody wandelt den JSON-Body in ein Task-Objekt um.
-    @PostMapping
-    public Task createTask(@RequestBody Task task) {
+    @PostMapping("/api/projects/{projectId}/tasks")
+    @Transactional
+    public Task createTask(
+            @PathVariable Long projectId,
+            @RequestBody Task task,
+            @AuthenticationPrincipal Jwt jwt) {
+        Project project = getProjectForMember(projectId, jwt);
+        task.setProject(project);
         return taskRepository.save(task);
     }
 
-    // DELETE /api/tasks/{id}: @PathVariable übernimmt die ID aus der URL.
-    @DeleteMapping("/{id}")
-    public void deleteTask(@PathVariable Long id) {
-        taskRepository.deleteById(id);
-    }
-    // PUT /api/tasks/{id} ersetzt die bearbeitbaren Felder einer bestehenden Aufgabe.
-    @PutMapping("/{id}")
-    public Task updateTask(@PathVariable Long id, @RequestBody Task updatedTask) {
+    @PutMapping("/api/tasks/{id}")
+    @Transactional
+    public Task updateTask(
+            @PathVariable Long id,
+            @RequestBody Task updatedTask,
+            @AuthenticationPrincipal Jwt jwt) {
+        Task task = getTaskForMember(id, jwt);
 
-        // Ohne vorhandene Aufgabe wird die Verarbeitung mit einer Ausnahme abgebrochen.
-        Task task = taskRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Task not found"));
-
-        // Alle vier Felder werden übernommen; ID und Erstellungszeit bleiben erhalten.
-        // Der Client muss auch unveränderte Felder mitsenden, sonst werden sie hier null.
         task.setTitle(updatedTask.getTitle());
         task.setDescription(updatedTask.getDescription());
         task.setStatus(updatedTask.getStatus());
         task.setPriority(updatedTask.getPriority());
 
-        // Speichert die Änderungen und gibt die aktualisierte Aufgabe an den Client zurück.
         return taskRepository.save(task);
+    }
+
+    @DeleteMapping("/api/tasks/{id}")
+    @Transactional
+    public void deleteTask(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Jwt jwt) {
+        Task task = getTaskForMember(id, jwt);
+        taskRepository.delete(task);
+    }
+
+    private Project getProjectForMember(Long projectId, Jwt jwt) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Projekt nicht gefunden"));
+
+        Long userId = getAuthenticatedUserId(jwt);
+        Long teamId = project.getTeam().getId();
+        if (!teamMemberRepository.existsByUserIdAndTeamId(userId, teamId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Kein Zugriff auf dieses Projekt");
+        }
+
+        return project;
+    }
+
+    private Task getTaskForMember(Long taskId, Jwt jwt) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Task nicht gefunden"));
+
+        if (task.getProject() == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Task ist keinem Projekt zugeordnet");
+        }
+
+        getProjectForMember(task.getProject().getId(), jwt);
+        return task;
+    }
+
+    private Long getAuthenticatedUserId(Jwt jwt) {
+        try {
+            return Long.valueOf(jwt.getSubject());
+        } catch (NullPointerException | NumberFormatException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Ungültiger Benutzer im Token");
+        }
     }
 }

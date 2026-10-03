@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import DashboardView from '../views/DashboardView.vue'
+import ProjectsView from '../views/ProjectsView.vue'
+import ProjectTasksView from '../views/ProjectTasksView.vue'
 import { authGuard } from './authGuard'
 
 const router = createRouter({
@@ -9,7 +11,7 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: { name: 'login' },
+      redirect: { name: 'dashboard' },
     },
     {
       path: '/login',
@@ -25,6 +27,18 @@ const router = createRouter({
       path: '/dashboard',
       name: 'dashboard',
       component: DashboardView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/teams/:teamId/projects',
+      name: 'team-projects',
+      component: ProjectsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/projects/:projectId/tasks',
+      name: 'project-tasks',
+      component: ProjectTasksView,
       meta: { requiresAuth: true },
     },
   ],

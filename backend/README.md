@@ -1,20 +1,25 @@
-# Backend: Login und JWT-Schutz der Task-API
+# Team Workspace Backend
 
-Aktueller Stand: Spring Security ist eingerichtet und `POST /api/auth/login`
-gibt nach erfolgreicher Passwortprüfung einen signierten JWT zurück.
-`/api/tasks` und alle Unterpfade erfordern diesen Token im Bearer-Header.
-Die Versionen der Security- und JWT-Module werden von Spring Boot verwaltet.
+Das Backend stellt die geschützte REST-API für Benutzer, Teams, Projekte und Aufgaben bereit. Spring Security prüft JWT-Bearer-Tokens, Spring Data JPA speichert die Daten in PostgreSQL.
 
 ## Backend starten
 
-Neben dem bestehenden `DB_PASSWORD` benötigt das Backend jetzt `JWT_SECRET`.
-Der Schlüssel muss aus mindestens 32 zufälligen Bytes bestehen und als Base64
-übergeben werden. Es gibt keinen eingebauten Ersatzschlüssel.
+Voraussetzungen:
 
-Für die lokale Entwicklung in PowerShell, aus dem Ordner `backend`:
+- Java 17
+- PostgreSQL mit der Datenbank `team_workspace`
+- PostgreSQL-Benutzer `postgres`
+
+Das Backend benötigt zwei Umgebungsvariablen:
+
+- `DB_PASSWORD`: Passwort des lokalen PostgreSQL-Benutzers
+- `JWT_SECRET`: mindestens 32 zufällige Bytes, Base64-kodiert
+
+PowerShell im Ordner `backend`:
 
 ```powershell
-# DB_PASSWORD muss in dieser Shell bereits für deine PostgreSQL-Datenbank gesetzt sein.
+$env:DB_PASSWORD = "<dein PostgreSQL-Passwort>"
+
 $jwtKeyBytes = New-Object byte[] 32
 $jwtRng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
 $jwtRng.GetBytes($jwtKeyBytes)
@@ -24,69 +29,52 @@ $env:JWT_SECRET = [Convert]::ToBase64String($jwtKeyBytes)
 .\mvnw.cmd spring-boot:run
 ```
 
-Den Schlüssel nicht ins Repository schreiben. Bei einem IDE-Start muss
-`JWT_SECRET` in der lokalen Startkonfiguration gesetzt sein. Ein neuer
-Signierschlüssel macht zuvor ausgestellte Tokens für die spätere Prüfung ungültig;
-für dauerhafte Nutzung den einmal erzeugten Schlüssel sicher aufbewahren.
-Eine `.env`-Datei wird von Spring Boot nicht automatisch geladen.
+Der Server läuft anschließend unter `http://localhost:8081`. Geheimnisse gehören weder in `application.properties` noch ins Repository. Eine `.env`-Datei wird von Spring Boot nicht automatisch geladen.
 
-## Login-Antwort
+## Authentifizierung
 
-Die bisherigen Felder bleiben erhalten; hinzu kommen `token`, `tokenType` und
-`expiresIn` (Gültigkeitsdauer in Sekunden):
+Registrierung und Login sind öffentlich:
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/health`
+
+Ein erfolgreicher Login liefert neben Benutzer-ID und Benutzername einen signierten JWT:
 
 ```json
 {
   "message": "Login successful",
   "userId": 1,
   "username": "beispiel",
-  "token": "<signierter JWT>",
+  "token": "<signed JWT>",
   "tokenType": "Bearer",
   "expiresIn": 3600
 }
 ```
 
-Der Token enthält die Benutzer-ID (`sub`), den Benutzernamen (`username`),
-den Aussteller (`iss`), die Ausstellungszeit (`iat`) und die Ablaufzeit (`exp`).
-Die Signatur verwendet HS256. Der Inhalt ist lesbar und enthält kein Passwort
-und keinen Passwort-Hash. Die Antwort darf nicht gecacht werden.
+Geschützte Anfragen senden den Token so:
 
-Falsche, unbekannte oder fehlende Zugangsdaten liefern weiterhin HTTP 401
-ohne Token. Die Gültigkeitsdauer steht in `application.properties` unter
-`jwt.expiration-seconds` und beträgt standardmäßig eine Stunde.
+```http
+Authorization: Bearer <token>
+```
 
-## Geschützte Task-API
+Fehlende, ungültige, manipulierte oder abgelaufene Tokens führen zu HTTP 401. Der Token verwendet HS256, den Aussteller `team-workspace` und standardmäßig eine Gültigkeitsdauer von einer Stunde.
 
-`SecurityConfig` schützt `/api/tasks` und `/api/tasks/**` für alle HTTP-Methoden.
-Die JWT-Prüfung übernimmt Spring Security mit `JwtService` als `JwtDecoder`.
-Dabei werden HS256-Signatur, Aussteller `team-workspace` und die Zeitangaben
-des Tokens geprüft. Die Signaturprüfung verwendet denselben `JWT_SECRET` wie
-die Token-Erstellung beim Login.
+## Geschützte API
 
-| Anfrage auf `/api/tasks` | Ergebnis |
-| --- | --- |
-| Ohne Token | HTTP 401 |
-| Mit ungültigem, manipuliertem oder abgelaufenem Token | HTTP 401 |
-| Mit gültigem Login-Token | Zugriff auf die Task-API erlaubt |
+| Methode | Route | Funktion |
+| --- | --- | --- |
+| `GET` | `/api/teams` | Teams des eingeloggten Benutzers laden |
+| `POST` | `/api/teams` | Team erstellen; Ersteller wird `OWNER` |
+| `POST` | `/api/teams/{teamId}/members` | Benutzer als `MEMBER` hinzufügen; nur für `OWNER` |
+| `GET` | `/api/teams/{teamId}/projects` | Projekte eines Teams laden |
+| `POST` | `/api/teams/{teamId}/projects` | Projekt im Team erstellen |
+| `GET` | `/api/projects/{projectId}/tasks` | Aufgaben eines Projekts laden |
+| `POST` | `/api/projects/{projectId}/tasks` | Aufgabe im Projekt erstellen |
+| `PUT` | `/api/tasks/{taskId}` | Aufgabe bearbeiten |
+| `DELETE` | `/api/tasks/{taskId}` | Aufgabe löschen |
 
-Login, Registrierung und Health-Check bleiben ohne Anmeldung erreichbar.
-Die API verwendet weder Session-Cookies noch HTTP-Basic- oder Formular-Login.
-Die Task-Liste ist weiterhin gemeinsam; eine Zuordnung von Tasks zu einzelnen
-Benutzern ist noch nicht eingerichtet.
-
-Vue speichert den Token im `sessionStorage` über den Pinia-Auth-Store. Der
-gemeinsame Helfer `frontend/src/api/tasks.js` sendet ihn bei allen Task-Anfragen
-als `Authorization: Bearer <token>`. Bei HTTP 401 wird die abgewiesene Sitzung
-im Frontend entfernt und das Dashboard leitet zum Login weiter.
-
-Ein Router-Guard schützt die Dashboard-Navigation zusätzlich. Der Logout-Button
-entfernt die Sitzung aus dem Pinia-Store und `sessionStorage` und führt zu
-`/login`. Der Logout erfolgt lokal; bereits ausgestellte JWTs bleiben bis zu
-ihrer Ablaufzeit bzw. einem Wechsel des Signierschlüssels serverseitig gültig.
-
-Nach einem Neustart mit einem neuen Signierschlüssel ist eine erneute Anmeldung
-erforderlich. Auch für den nächsten manuellen Start müssen `DB_PASSWORD` und
-`JWT_SECRET` in der jeweiligen Shell bzw. IDE-Startkonfiguration gesetzt sein.
+Für Team-, Projekt- und Task-Zugriffe muss der eingeloggte Benutzer Mitglied des betroffenen Teams sein. Unerlaubte Zugriffe führen zu HTTP 403, unbekannte Ressourcen zu HTTP 404.
 
 ## Tests
 
@@ -94,13 +82,6 @@ erforderlich. Auch für den nächsten manuellen Start müssen `DB_PASSWORD` und
 .\mvnw.cmd test
 ```
 
-Die Spring-Tests aktivieren das Profil `test` mit einer flüchtigen H2-Datenbank
-und einem separaten öffentlichen Testschlüssel. `DB_PASSWORD` und `JWT_SECRET`
-werden für Tests nicht benötigt; die lokale PostgreSQL-Datenbank wird nicht
-angesprochen. Das Testprofil liegt nur unter `src/test/resources` und wird nicht
-in die ausführbare Anwendung gepackt.
+Die automatisierten Tests verwenden das Profil `test` mit einer flüchtigen H2-Datenbank und einem separaten Testschlüssel. Deshalb werden `DB_PASSWORD` und `JWT_SECRET` für den Testlauf nicht benötigt und die lokale PostgreSQL-Datenbank wird nicht verändert.
 
-Geprüft werden erfolgreiche und fehlgeschlagene Logins, Token-Inhalt, Signatur,
-Ablaufzeit, ungültige Schlüssel sowie weiterhin öffentliche Registrierung und
-Health-Check. Die HTTP-Tests verlangen 401 für unautorisierte Task-Anfragen
-und prüfen Lesen, Anlegen, Bearbeiten und Löschen mit einem echten Login-Token.
+Die Tests prüfen Registrierung, Login, JWT-Validierung, geschützte Routen, Team-Mitgliedschaften und Rollen sowie Projekt- und Task-Zugriffe einschließlich 401, 403 und 404.

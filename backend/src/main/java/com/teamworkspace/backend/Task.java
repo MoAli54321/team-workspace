@@ -26,6 +26,11 @@ public class Task {
     // Initialwert beim Erzeugen des Java-Objekts; beim Laden ersetzt JPA ihn durch den DB-Wert.
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    // Bleibt für bestehende Tasks zunächst nullable; neue Tasks werden über ein Projekt angelegt.
+    @ManyToOne
+    @JoinColumn(name = "project_id")
+    private Project project;
+
     // JPA benötigt einen parameterlosen Konstruktor, um Datensätze als Objekte zu laden.
     public Task() {
     }
@@ -69,5 +74,13 @@ public class Task {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public Project getProject() {
+        return project;
+    }
+
+    public void setProject(Project project) {
+        this.project = project;
     }
 }

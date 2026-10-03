@@ -4,9 +4,7 @@
 /* Globaler Rahmen für das Element, in dem Vue die Anwendung anzeigt. */
 #app {
   width: 100%;
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+  min-height: 100vh;
   font-weight: normal;
 }
 
@@ -15,7 +13,6 @@ a,
   text-decoration: none;
   color: hsla(160, 100%, 37%, 1);
   transition: 0.4s;
-  padding: 3px;
 }
 
 /* Der Hover-Effekt gilt nur für Geräte, die das Überfahren mit einem Zeiger unterstützen. */

@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, mock, test } from 'node:test'
 import { createPinia, setActivePinia } from 'pinia'
+import { requestProjects } from '../src/api/projects.js'
+import { requestProjectTasks, requestTask } from '../src/api/tasks.js'
+import { requestTeams } from '../src/api/teams.js'
 import { useAuthStore } from '../src/stores/auth.js'
-import { requestTasks } from '../src/api/tasks.js'
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -11,32 +13,49 @@ beforeEach(() => {
 
 afterEach(() => mock.restoreAll())
 
-for (const method of ['GET', 'POST', 'PUT', 'DELETE']) {
-  test(`${method} task requests carry the token and preserve existing request data`, async () => {
+const apiCases = [
+  ['teams', () => requestTeams(), '/api/teams', 'GET'],
+  ['projects', () => requestProjects(12), '/api/teams/12/projects', 'GET'],
+  ['project tasks', () => requestProjectTasks(34), '/api/projects/34/tasks', 'GET'],
+  ['single task', () => requestTask(56, { method: 'DELETE' }), '/api/tasks/56', 'DELETE'],
+]
+
+for (const [name, request, expectedUrl, expectedMethod] of apiCases) {
+  test(`${name} requests use the correct URL and current token`, async () => {
     const response = Response.json([])
     const fetchMock = mock.method(globalThis, 'fetch', async () => response)
-    const hasBody = method === 'POST' || method === 'PUT'
-    const body = hasBody ? JSON.stringify({ title: 'Test task' }) : undefined
-    const headers = new Headers(hasBody ? { 'Content-Type': 'application/json' } : {})
-    const path = method === 'PUT' || method === 'DELETE' ? '/42' : ''
 
-    assert.equal(await requestTasks(path, { method, headers, body }), response)
+    assert.equal(await request(), response)
 
     const [url, options] = fetchMock.mock.calls[0].arguments
-    assert.equal(url, `/api/tasks${path}`)
-    assert.equal(options.method, method)
+    assert.equal(url, expectedUrl)
+    assert.equal(options.method ?? 'GET', expectedMethod)
     assert.equal(options.headers.get('Authorization'), 'Bearer current-token')
-    assert.equal(options.headers.get('Content-Type'), hasBody ? 'application/json' : null)
-    assert.equal(options.body, body)
-    assert.equal(headers.has('Authorization'), false)
   })
 }
 
+test('request options and JSON headers are preserved without mutating caller headers', async () => {
+  const response = Response.json({})
+  const fetchMock = mock.method(globalThis, 'fetch', async () => response)
+  const body = JSON.stringify({ title: 'Test task' })
+  const headers = new Headers({ 'Content-Type': 'application/json' })
+
+  assert.equal(await requestProjectTasks(4, { method: 'POST', headers, body }), response)
+
+  const [url, options] = fetchMock.mock.calls[0].arguments
+  assert.equal(url, '/api/projects/4/tasks')
+  assert.equal(options.method, 'POST')
+  assert.equal(options.headers.get('Authorization'), 'Bearer current-token')
+  assert.equal(options.headers.get('Content-Type'), 'application/json')
+  assert.equal(options.body, body)
+  assert.equal(headers.has('Authorization'), false)
+})
+
 test('each request uses the latest token from the auth store', async () => {
   const fetchMock = mock.method(globalThis, 'fetch', async () => Response.json([]))
-  await requestTasks()
+  await requestTeams()
   useAuthStore().$patch({ token: 'new-login-token' })
-  await requestTasks('', { headers: { Authorization: 'Bearer outdated-token' } })
+  await requestProjects(1, { headers: { Authorization: 'Bearer outdated-token' } })
 
   assert.equal(fetchMock.mock.calls[0].arguments[1].headers.get('Authorization'), 'Bearer current-token')
   assert.equal(fetchMock.mock.calls[1].arguments[1].headers.get('Authorization'), 'Bearer new-login-token')
@@ -46,21 +65,21 @@ test('without a token no bearer header is sent and HTTP 401 asks for login', asy
   useAuthStore().$patch({ token: '' })
   const fetchMock = mock.method(globalThis, 'fetch', async () => new Response(null, { status: 401 }))
 
-  await assert.rejects(requestTasks(), /Bitte melde dich erneut an/)
+  await assert.rejects(requestTeams(), /Bitte melde dich erneut an/)
 
   assert.equal(fetchMock.mock.calls[0].arguments[1].headers.has('Authorization'), false)
 })
 
-test('an expired or rejected token results in a login message', async () => {
+test('an expired or rejected token clears the current session', async () => {
   mock.method(globalThis, 'fetch', async () => new Response(null, { status: 401 }))
-  await assert.rejects(requestTasks(), /Bitte melde dich erneut an/)
+  await assert.rejects(requestProjectTasks(1), /Bitte melde dich erneut an/)
   assert.deepEqual(useAuthStore().$state, { token: '', username: '', userId: null })
 })
 
 test('a late unauthorized response does not log out a newer session', async () => {
   let respond
   mock.method(globalThis, 'fetch', () => new Promise(resolve => { respond = resolve }))
-  const pendingRequest = requestTasks()
+  const pendingRequest = requestTeams()
   useAuthStore().$patch({ token: 'newer-session-token' })
   respond(new Response(null, { status: 401 }))
 
@@ -68,8 +87,8 @@ test('a late unauthorized response does not log out a newer session', async () =
   assert.equal(useAuthStore().token, 'newer-session-token')
 })
 
-test('other HTTP errors remain available to the task-specific error handling', async () => {
+test('other HTTP errors remain available to the view-specific error handling', async () => {
   const response = new Response(null, { status: 500 })
   mock.method(globalThis, 'fetch', async () => response)
-  assert.equal(await requestTasks(), response)
+  assert.equal(await requestProjects(1), response)
 })

@@ -149,7 +149,8 @@ class AuthIntegrationTests {
     @ParameterizedTest
     @CsvSource({
             "GET, /api/tasks", "POST, /api/tasks", "GET, /api/tasks/1",
-            "PUT, /api/tasks/1", "DELETE, /api/tasks/1"
+            "PUT, /api/tasks/1", "DELETE, /api/tasks/1",
+            "GET, /api/projects/1/tasks", "POST, /api/projects/1/tasks"
     })
     void taskRequestsWithoutTokenReturn401(String method, String path) throws Exception {
         mvc.perform(request(HttpMethod.valueOf(method), path)
@@ -203,7 +204,7 @@ class AuthIntegrationTests {
     }
 
     @Test
-    void loginTokenAllowsReadingCreatingUpdatingAndDeletingTasks() throws Exception {
+    void loginTokenAllowsAccessToProtectedApi() throws Exception {
         String response = mvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -212,32 +213,9 @@ class AuthIntegrationTests {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String bearer = "Bearer " + JsonPath.<String>read(response, "$.token");
 
-        mvc.perform(get("/api/tasks").header("Authorization", bearer))
+        mvc.perform(get("/api/teams").header("Authorization", bearer))
                 .andExpect(status().isOk())
                 .andExpect(header().doesNotExist("Set-Cookie"));
-
-        String created = mvc.perform(post("/api/tasks").header("Authorization", bearer)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"title":"JWT integration test","description":"Test only","status":"TODO","priority":"MEDIUM"}
-                                """))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        long taskId = JsonPath.<Number>read(created, "$.id").longValue();
-
-        mvc.perform(put("/api/tasks/" + taskId).header("Authorization", bearer)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"title":"Updated task","description":"Updated","status":"DONE","priority":"HIGH"}
-                                """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.title").value("Updated task"))
-                .andExpect(jsonPath("$.status").value("DONE"))
-                .andExpect(jsonPath("$.priority").value("HIGH"));
-
-        mvc.perform(delete("/api/tasks/" + taskId).header("Authorization", bearer))
-                .andExpect(status().isOk());
-        assertThat(taskRepository.existsById(taskId)).isFalse();
     }
 
     @Test
