@@ -1,11 +1,29 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+import { requestTasks } from '../api/tasks'
+
+const router = useRouter()
+const authStore = useAuthStore()
 
 // ref macht Werte reaktiv: Änderungen aktualisieren automatisch die Oberfläche.
 // Im JavaScript erfolgt der Zugriff über .value, im Template direkt über den Namen.
 const tasks = ref([])
 const loading = ref(true)
 const error = ref('')
+
+function logout() {
+  authStore.logout()
+}
+
+// Reagiert sowohl auf den Logout-Button als auch auf eine vom Backend abgewiesene Sitzung.
+watch(() => authStore.token, token => {
+  if (!token) {
+    tasks.value = []
+    router.replace({ name: 'login' })
+  }
+})
 
 // Eingaben und Standardwerte für das Formular zum Anlegen einer Aufgabe.
 const title = ref('')
@@ -39,7 +57,7 @@ function cancelEdit() {
 // Der PUT-Endpunkt erwartet alle vier bearbeitbaren Felder einer Aufgabe.
 async function saveTask(task) {
   try {
-    const response = await fetch(`/api/tasks/${task.id}`, {
+    const response = await requestTasks(`/${task.id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -72,7 +90,7 @@ async function loadTasks() {
     error.value = ''
 
     // Relative /api-Adressen werden in der Entwicklung vom Vite-Proxy weitergeleitet.
-    const response = await fetch('/api/tasks')
+    const response = await requestTasks()
 
     // fetch wirft bei HTTP-Fehlern wie 404 oder 500 nicht automatisch einen Fehler.
     if (!response.ok) {
@@ -101,7 +119,7 @@ async function createTask() {
     error.value = ''
 
     // POST legt eine neue Aufgabe mit den aktuellen Formularwerten an.
-    const response = await fetch('/api/tasks', {
+    const response = await requestTasks('', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -132,7 +150,7 @@ async function createTask() {
 // Ändert den Status und sendet die übrigen Felder mit, damit PUT sie nicht leert.
 async function updateTaskStatus(task, newStatus) {
   try {
-    const response = await fetch(`/api/tasks/${task.id}`, {
+    const response = await requestTasks(`/${task.id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -158,7 +176,7 @@ async function updateTaskStatus(task, newStatus) {
 // Ändert die Priorität; Titel, Beschreibung und Status werden unverändert mitgesendet.
 async function updateTaskPriority(task, newPriority) {
   try {
-    const response = await fetch(`/api/tasks/${task.id}`, {
+    const response = await requestTasks(`/${task.id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -184,7 +202,7 @@ async function updateTaskPriority(task, newPriority) {
 // DELETE identifiziert die Aufgabe über ihre ID in der URL; ein Body ist nicht nötig.
 async function deleteTask(id) {
   try {
-    const response = await fetch(`/api/tasks/${id}`, {
+    const response = await requestTasks(`/${id}`, {
       method: 'DELETE',
     })
 
@@ -204,7 +222,10 @@ onMounted(loadTasks)
 
 <template>
   <main>
-    <h1>Team Workspace</h1>
+    <header class="dashboard-header">
+      <h1>Team Workspace</h1>
+      <button type="button" @click="logout">Logout</button>
+    </header>
 
     <!-- v-model verbindet die Eingabefelder mit den reaktiven Formularwerten. -->
     <section class="form">
@@ -335,6 +356,14 @@ main {
 
 h1 {
   font-size: 2.5rem;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 15px;
   margin-bottom: 30px;
 }
 

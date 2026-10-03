@@ -2,10 +2,11 @@ package com.teamworkspace.backend;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
-// Lädt den Spring-Anwendungskontext einschließlich der konfigurierten Datenbankanbindung.
-// Dafür müssen PostgreSQL und die Zugangsdaten aus application.properties verfügbar sein.
+// Lädt den Anwendungskontext mit eigener H2-Datenbank und einem separaten Testschlüssel.
 @SpringBootTest
+@ActiveProfiles("test")
 class BackendApplicationTests {
 
 	@Test

@@ -1,9 +1,11 @@
 <script setup>
 import { ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
 const route = useRoute()
+const authStore = useAuthStore()
 const identifier = ref('')
 const password = ref('')
 const error = ref('')
@@ -22,35 +24,15 @@ async function login() {
   submitting.value = true
 
   try {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        identifier: identifier.value.trim(),
-        password: password.value,
-      }),
-    })
+    await authStore.login(identifier.value, password.value)
 
-    if (response.status === 401) {
-      throw new Error('E-Mail, Benutzername oder Passwort ist falsch.')
-    }
-
-    if (!response.ok) {
-      throw new Error('Login fehlgeschlagen. Bitte versuche es erneut.')
-    }
-
-    // Das Backend bestätigt bisher nur die Zugangsdaten und erstellt keine Sitzung.
-    // Deshalb werden hier noch keine Tokens oder Anmeldedaten gespeichert.
+    // Der Store hat den JWT und die Benutzerdaten jetzt im Sitzungsspeicher abgelegt.
     password.value = ''
     await router.push({ name: 'dashboard' })
   } catch (err) {
-    error.value = err instanceof TypeError
-      ? 'Der Server ist nicht erreichbar. Bitte versuche es erneut.'
-      : err instanceof Error
-        ? err.message
-        : 'Login fehlgeschlagen. Bitte versuche es erneut.'
+    error.value = err instanceof Error
+      ? err.message
+      : 'Login fehlgeschlagen. Bitte versuche es erneut.'
   } finally {
     submitting.value = false
   }

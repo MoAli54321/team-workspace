@@ -1,7 +1,8 @@
 package com.teamworkspace.backend;
 
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,11 +16,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final UserRepository userRepository;
-    private final BCryptPasswordEncoder passwordEncoder =
-            new BCryptPasswordEncoder();
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
-    public AuthController(UserRepository userRepository) {
+    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
     }
 
     @PostMapping("/register")
@@ -54,6 +57,13 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
 
+        if (request.getIdentifier() == null || request.getIdentifier().isBlank()
+                || request.getPassword() == null || request.getPassword().isEmpty()) {
+            return ResponseEntity
+                    .status(401)
+                    .body("Invalid username/email or password");
+        }
+
         User user = userRepository.findByEmail(request.getIdentifier())
                 .or(() -> userRepository.findByUsername(request.getIdentifier()))
                 .orElse(null);
@@ -73,11 +83,17 @@ public class AuthController {
                     .body("Invalid username/email or password");
         }
 
-        return ResponseEntity.ok(
+        // Erst nach erfolgreicher Passwortprüfung wird ein signierter Token ausgestellt.
+        String token = jwtService.createToken(user);
+
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(
                 java.util.Map.of(
                         "message", "Login successful",
                         "userId", user.getId(),
-                        "username", user.getUsername()
+                        "username", user.getUsername(),
+                        "token", token,
+                        "tokenType", "Bearer",
+                        "expiresIn", jwtService.getExpirationSeconds()
                 )
         );
     }

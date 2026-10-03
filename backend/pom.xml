@@ -35,10 +35,21 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-webmvc</artifactId>
     </dependency>
-	<dependency>
-    	<groupId>org.springframework.security</groupId>
-    	<artifactId>spring-security-crypto</artifactId>
-	</dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+
+    <!-- Spring Security stellt den JWT-Encoder bereit; Boot verwaltet die Version. -->
+    <dependency>
+        <groupId>org.springframework.security</groupId>
+        <artifactId>spring-security-oauth2-jose</artifactId>
+    </dependency>
+
+    <dependency>
+        <groupId>org.springframework.security</groupId>
+        <artifactId>spring-security-oauth2-resource-server</artifactId>
+    </dependency>
 
     <dependency>
         <groupId>org.springframework.boot</groupId>
@@ -54,6 +65,12 @@
     <dependency>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-webmvc-test</artifactId>
+        <scope>test</scope>
+    </dependency>
+
+    <dependency>
+        <groupId>com.h2database</groupId>
+        <artifactId>h2</artifactId>
         <scope>test</scope>
     </dependency>
 

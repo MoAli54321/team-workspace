@@ -2,8 +2,9 @@
 import './assets/main.css'
 
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 
 // Startet Vue mit App.vue als Hauptkomponente im Element #app aus index.html.
-createApp(App).use(router).mount('#app')
+createApp(App).use(createPinia()).use(router).mount('#app')
