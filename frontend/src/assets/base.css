@@ -22,6 +22,7 @@
 }
 
 /* semantic color variables for this project */
+/* Diese Variablen ordnen Farben ihrem Zweck zu, etwa Hintergrund, Rahmen oder Text. */
 :root {
   --color-background: var(--vt-c-white);
   --color-background-soft: var(--vt-c-white-soft);
@@ -36,6 +37,7 @@
   --section-gap: 160px;
 }
 
+/* Bei dunklem System- oder Browserdesign werden die verwendeten Farben überschrieben. */
 @media (prefers-color-scheme: dark) {
   :root {
     --color-background: var(--vt-c-black);
@@ -50,6 +52,7 @@
   }
 }
 
+/* Vereinheitlicht das Box-Modell und entfernt Standardabstände des Browsers. */
 *,
 *::before,
 *::after {
@@ -58,6 +61,7 @@
   font-weight: normal;
 }
 
+/* Globale Schrift und Hintergrundfarbe; die Farbübergänge werden weich animiert. */
 body {
   min-height: 100vh;
   color: var(--color-text);
