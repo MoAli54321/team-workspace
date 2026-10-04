@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, mock, test } from 'node:test'
 import { createPinia, setActivePinia } from 'pinia'
-import { requestProjects } from '../src/api/projects.js'
+import { requestProject, requestProjects } from '../src/api/projects.js'
 import { requestProjectTasks, requestTask } from '../src/api/tasks.js'
-import { requestTeams } from '../src/api/teams.js'
+import { requestTeam, requestTeamMember, requestTeamMembers, requestTeams } from '../src/api/teams.js'
 import { useAuthStore } from '../src/stores/auth.js'
 
 beforeEach(() => {
@@ -13,9 +13,15 @@ beforeEach(() => {
 
 afterEach(() => mock.restoreAll())
 
+// Ein gemeinsamer Testlauf prüft URL, HTTP-Methode und Token für alle geschützten API-Helfer.
+// fetch wird ersetzt, deshalb gehen dabei keine Anfragen an das laufende Backend.
 const apiCases = [
   ['teams', () => requestTeams(), '/api/teams', 'GET'],
+  ['team deletion', () => requestTeam(12, { method: 'DELETE' }), '/api/teams/12', 'DELETE'],
   ['projects', () => requestProjects(12), '/api/teams/12/projects', 'GET'],
+  ['project deletion', () => requestProject(12, 34, { method: 'DELETE' }), '/api/teams/12/projects/34', 'DELETE'],
+  ['team roster', () => requestTeamMembers(12), '/api/teams/12/members', 'GET'],
+  ['member removal', () => requestTeamMember(12, 7, { method: 'DELETE' }), '/api/teams/12/members/7', 'DELETE'],
   ['project tasks', () => requestProjectTasks(34), '/api/projects/34/tasks', 'GET'],
   ['single task', () => requestTask(56, { method: 'DELETE' }), '/api/tasks/56', 'DELETE'],
 ]
@@ -76,6 +82,7 @@ test('an expired or rejected token clears the current session', async () => {
   assert.deepEqual(useAuthStore().$state, { token: '', username: '', userId: null })
 })
 
+// Bildet den Fall nach, dass sich jemand neu anmeldet, während eine alte Anfrage noch unterwegs ist.
 test('a late unauthorized response does not log out a newer session', async () => {
   let respond
   mock.method(globalThis, 'fetch', () => new Promise(resolve => { respond = resolve }))

@@ -1,11 +1,14 @@
 import { defineStore } from 'pinia'
 
+// Pinia hält die Sitzung für die laufende Oberfläche bereit. sessionStorage erhält sie
+// beim Neuladen im selben Tab; das Passwort gehört nicht zu diesen gespeicherten Daten.
 const STORAGE_KEY = 'auth'
 
 function emptySession() {
   return { token: '', username: '', userId: null }
 }
 
+// Prüft die Form der gespeicherten Daten. Die Echtheit des JWT prüft weiterhin das Backend.
 function readSession(data) {
   if (
     typeof data?.token !== 'string' || !data.token.trim() ||
@@ -47,6 +50,8 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    // Die lokale Sitzung wird entfernt. Bereits ausgestellte JWTs werden dadurch
+    // nicht serverseitig widerrufen und bleiben bis zu ihrem Ablauf grundsätzlich gültig.
     logout() {
       this.$patch(emptySession())
       try {
@@ -56,6 +61,8 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    // Erst eine erfolgreiche API-Antwort und ein erfolgreicher Speichervorgang
+    // machen den Benutzer für die Oberfläche angemeldet.
     async login(identifier, password) {
       let response
 

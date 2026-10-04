@@ -1,45 +1,58 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import WorkspaceShell from '../components/WorkspaceShell.vue'
+import UiIcon from '../components/UiIcon.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { requestTeams } from '../api/teams.js'
+import { requestTeam, requestTeams } from '../api/teams.js'
 import { useAuthStore } from '../stores/auth.js'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
+// Die API liefert nur Teams, in denen der angemeldete Benutzer Mitglied ist.
 const teams = ref([])
 const loading = ref(true)
 const submitting = ref(false)
+const deleting = ref(false)
 const error = ref('')
+const deleteError = ref('')
+const notice = ref('')
+const pendingTeam = ref(null)
 const name = ref('')
 const description = ref('')
+let loadVersion = 0
 
-function logout() {
-  authStore.logout()
-}
-
+// Dieser Weg greift sowohl bei Logout als auch nach einer vom Backend abgelehnten Sitzung.
 watch(() => authStore.token, token => {
   if (!token) {
+    loadVersion++
     teams.value = []
+    pendingTeam.value = null
     router.replace({ name: 'login' })
   }
 })
 
 async function loadTeams() {
+  const version = ++loadVersion
   loading.value = true
   error.value = ''
 
   try {
     const response = await requestTeams()
     if (!response.ok) throw new Error('Teams konnten nicht geladen werden.')
-    teams.value = await response.json()
+    const data = await response.json()
+    if (version === loadVersion) teams.value = data
   } catch (err) {
+    if (version !== loadVersion) return
+    teams.value = []
     error.value = err instanceof Error ? err.message : 'Teams konnten nicht geladen werden.'
   } finally {
-    loading.value = false
+    if (version === loadVersion) loading.value = false
   }
 }
 
+// Der laufende Speichervorgang sperrt das Formular und verhindert doppelte Übermittlungen.
 async function createTeam() {
   if (!name.value.trim() || submitting.value) {
     if (!name.value.trim()) error.value = 'Bitte einen Teamnamen eingeben.'
@@ -48,6 +61,7 @@ async function createTeam() {
 
   submitting.value = true
   error.value = ''
+  notice.value = ''
 
   try {
     const response = await requestTeams({
@@ -59,6 +73,7 @@ async function createTeam() {
       }),
     })
 
+    if (response.status === 400) throw new Error('Bitte prüfe den Teamnamen und die Beschreibung (je höchstens 255 Zeichen).')
     if (!response.ok) throw new Error('Team konnte nicht erstellt werden.')
 
     name.value = ''
@@ -71,171 +86,126 @@ async function createTeam() {
   }
 }
 
+// Der Dialog zeigt vor dem endgültigen Löschen genau, welche Teamdaten betroffen sind.
+function askToDeleteTeam(team) {
+  pendingTeam.value = team
+  deleteError.value = ''
+}
+
+function cancelTeamDeletion() {
+  if (!deleting.value) pendingTeam.value = null
+}
+
+async function deleteTeam() {
+  if (!pendingTeam.value || deleting.value) return
+
+  const team = pendingTeam.value
+  deleting.value = true
+  deleteError.value = ''
+
+  try {
+    const response = await requestTeam(team.id, { method: 'DELETE' })
+
+    if (response.status === 403) {
+      throw new Error('Nur der Besitzer darf dieses Team löschen.')
+    }
+    if (response.status === 404) {
+      throw new Error('Das Team wurde bereits gelöscht oder nicht gefunden.')
+    }
+    if (!response.ok) {
+      throw new Error('Team konnte nicht gelöscht werden.')
+    }
+
+    pendingTeam.value = null
+    notice.value = `„${team.name}“ wurde vollständig gelöscht.`
+    await loadTeams()
+  } catch (err) {
+    deleteError.value = err instanceof Error ? err.message : 'Team konnte nicht gelöscht werden.'
+  } finally {
+    deleting.value = false
+  }
+}
+
 onMounted(loadTeams)
+onBeforeUnmount(() => { loadVersion++ })
 </script>
 
 <template>
-  <main class="workspace-page">
+  <WorkspaceShell>
     <header class="page-header">
       <div>
-        <p class="eyebrow">Team Workspace</p>
+        <p class="eyebrow">Dein Arbeitsplatz</p>
         <h1>Meine Teams</h1>
-        <p class="subtitle">Willkommen, {{ authStore.username }}.</p>
+        <p class="subtitle">Hallo {{ authStore.username }}. Öffne ein Team, um Projekte und Mitglieder zu verwalten.</p>
       </div>
-      <button type="button" class="secondary-button" @click="logout">Logout</button>
+      <span v-if="!loading" class="page-counter"><UiIcon name="users" />{{ teams.length }} {{ teams.length === 1 ? 'Team' : 'Teams' }}</span>
     </header>
 
-    <section class="panel">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">Neuer Arbeitsbereich</p>
-          <h2>Team erstellen</h2>
-        </div>
-      </div>
+    <a class="button mobile-create-link" href="#create-heading"><UiIcon name="plus" />Neues Team</a>
 
-      <form class="stack-form" :aria-busy="submitting" @submit.prevent="createTeam">
-        <label>
-          Teamname
-          <input v-model="name" type="text" placeholder="z. B. Software Projekt" :disabled="submitting" required />
-        </label>
-
-        <label>
-          Beschreibung
-          <textarea v-model="description" placeholder="Woran arbeitet dieses Team?" :disabled="submitting"></textarea>
-        </label>
-
-        <button type="submit" :disabled="submitting">
-          {{ submitting ? 'Team wird erstellt …' : 'Team erstellen' }}
-        </button>
-      </form>
-    </section>
-
+    <p v-if="notice" class="success team-notice" role="status">{{ notice }}</p>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
 
-    <section>
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">Übersicht</p>
-          <h2>Teams</h2>
+    <!-- Übersicht und Erstellformular teilen sich am Desktop den Platz und stehen mobil untereinander. -->
+    <div class="workspace-columns">
+      <section class="collection" aria-labelledby="teams-heading" :aria-busy="loading">
+        <div class="section-heading">
+          <div class="section-title"><h2 id="teams-heading">Deine Arbeitsbereiche</h2><span v-if="!loading" class="count-badge">{{ teams.length }}</span></div>
+          <button type="button" class="text-button" :disabled="loading" @click="loadTeams"><UiIcon name="refresh" />Aktualisieren</button>
         </div>
-        <button type="button" class="text-button" :disabled="loading" @click="loadTeams">Aktualisieren</button>
-      </div>
 
-      <p v-if="loading" class="empty-state">Teams werden geladen …</p>
-      <p v-else-if="teams.length === 0" class="empty-state">
-        Du bist noch in keinem Team. Erstelle oben dein erstes Team.
-      </p>
+        <div v-if="loading" class="empty-state" role="status"><p>Teams werden geladen …</p></div>
+        <div v-else-if="!error && teams.length === 0" class="empty-state">
+          <span class="entity-icon"><UiIcon name="users" /></span>
+          <h3>Noch keine Teams</h3>
+          <p>Erstelle ein Team oder lass dich zu einem bestehenden Team hinzufügen.</p>
+        </div>
 
-      <div v-else class="card-grid">
-        <RouterLink
-          v-for="team in teams"
-          :key="team.id"
-          class="workspace-card"
-          :to="{ name: 'team-projects', params: { teamId: team.id }, query: { teamName: team.name } }"
-        >
-          <div>
-            <p class="card-label">Team</p>
-            <h3>{{ team.name }}</h3>
-            <p>{{ team.description || 'Keine Beschreibung' }}</p>
-          </div>
-          <span class="card-action">Projekte öffnen →</span>
-        </RouterLink>
-      </div>
-    </section>
-  </main>
+        <div v-else class="card-grid">
+          <article v-for="(team, index) in teams" :key="team.id" class="workspace-card team-card">
+            <RouterLink class="team-card-link"
+              :to="{ name: 'team-projects', params: { teamId: team.id }, query: { teamName: team.name } }">
+              <div class="card-top">
+                <span class="entity-icon" :class="'tone-' + (index % 4)">{{ team.name.slice(0, 2).toUpperCase() }}</span>
+                <span class="card-kind">{{ team.role === 'OWNER' ? 'Besitzer' : 'Mitglied' }}</span>
+              </div>
+              <h3>{{ team.name }}</h3>
+              <p class="card-description">{{ team.description || 'Keine Beschreibung' }}</p>
+              <div class="card-footer"><span class="card-action">Team öffnen</span><UiIcon name="arrow" /></div>
+            </RouterLink>
+            <div v-if="team.role === 'OWNER'" class="team-card-actions">
+              <button type="button" class="text-button destructive-link" :aria-label="'Team löschen: ' + team.name" @click="askToDeleteTeam(team)">
+                <UiIcon name="trash" />Team löschen
+              </button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <aside class="panel create-panel" aria-labelledby="create-heading">
+        <span class="panel-icon"><UiIcon name="plus" /></span>
+        <h2 id="create-heading">Neues Team erstellen</h2>
+        <p class="panel-intro">Ein gemeinsamer Arbeitsbereich für dich und dein Team.</p>
+        <form class="stack-form" :aria-busy="submitting" @submit.prevent="createTeam">
+          <label>Teamname
+            <input v-model="name" type="text" placeholder="z. B. Design & Entwicklung" :disabled="submitting" required maxlength="255" />
+          </label>
+          <label><span class="label-row">Beschreibung<span class="optional">Optional</span></span>
+            <textarea v-model="description" placeholder="Woran arbeitet ihr gemeinsam?" :disabled="submitting" maxlength="255"></textarea>
+          </label>
+          <button type="submit" class="button" :disabled="submitting"><UiIcon name="plus" />{{ submitting ? 'Wird erstellt …' : 'Team erstellen' }}</button>
+        </form>
+        <p class="form-note"><UiIcon name="check" />Du wirst automatisch Besitzer dieses Teams.</p>
+      </aside>
+    </div>
+
+    <ConfirmDialog v-if="pendingTeam"
+      title="Team endgültig löschen?"
+      :message="`„${pendingTeam.name}“ sowie alle Projekte, Aufgaben und Mitgliedschaften dieses Teams werden gelöscht. Die Benutzerkonten bleiben erhalten.`"
+      confirm-label="Team löschen"
+      :busy="deleting"
+      :error="deleteError"
+      @confirm="deleteTeam"
+      @cancel="cancelTeamDeletion" />
+  </WorkspaceShell>
 </template>
-
-<style scoped>
-.workspace-page {
-  width: min(960px, 100%);
-  margin: 0 auto;
-  padding: 48px 20px 72px;
-}
-
-.page-header,
-.section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-}
-
-.page-header { margin-bottom: 32px; }
-.section-heading { margin-bottom: 18px; }
-
-h1 { font-size: clamp(2rem, 6vw, 3.25rem); line-height: 1.1; }
-h2 { font-size: 1.5rem; }
-
-.eyebrow,
-.card-label {
-  color: #16805f;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.subtitle { margin-top: 6px; color: var(--color-text-muted); }
-
-.panel {
-  padding: 24px;
-  margin-bottom: 32px;
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  background: var(--color-background-soft);
-}
-
-.stack-form { display: grid; gap: 16px; }
-.stack-form label { display: grid; gap: 6px; font-weight: 600; }
-
-input,
-textarea,
-button {
-  padding: 11px 14px;
-  border: 1px solid var(--color-border-hover);
-  border-radius: 9px;
-  font: inherit;
-}
-
-input,
-textarea { color: var(--color-text); background: var(--color-background); }
-textarea { min-height: 92px; resize: vertical; }
-
-button {
-  width: fit-content;
-  color: white;
-  background: #16805f;
-  cursor: pointer;
-}
-
-button:disabled { cursor: wait; opacity: 0.65; }
-.secondary-button { color: var(--color-text); background: transparent; }
-.text-button { padding: 6px; border: 0; color: #16805f; background: transparent; }
-
-.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-
-.workspace-card {
-  display: flex;
-  min-height: 190px;
-  padding: 22px;
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-  flex-direction: column;
-  justify-content: space-between;
-  color: var(--color-text);
-  background: var(--color-background-soft);
-}
-
-.workspace-card:hover { border-color: #16805f; background: var(--color-background-mute); }
-.workspace-card h3 { margin: 7px 0; font-size: 1.25rem; }
-.workspace-card p { color: var(--color-text-muted); }
-.card-action { margin-top: 24px; color: #16805f; font-weight: 700; }
-
-.empty-state { padding: 28px; border: 1px dashed var(--color-border-hover); border-radius: 12px; text-align: center; }
-.error { padding: 12px 14px; margin-bottom: 24px; border-radius: 9px; color: #a51d1d; background: #fff0f0; }
-
-@media (max-width: 600px) {
-  .page-header,
-  .section-heading { align-items: flex-start; flex-direction: column; }
-}
-</style>

@@ -1,4 +1,6 @@
 <script setup>
+import AuthLayout from '../components/AuthLayout.vue'
+import UiIcon from '../components/UiIcon.vue'
 import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 
@@ -6,9 +8,12 @@ const router = useRouter()
 const username = ref('')
 const email = ref('')
 const password = ref('')
+const showPassword = ref(false)
 const error = ref('')
 const submitting = ref(false)
 
+// Die Registrierung legt den Account an. Anschließend folgt bewusst die normale Anmeldung,
+// denn erst der Login stellt einen JWT für die geschützten Bereiche aus.
 async function register() {
   if (submitting.value) return
 
@@ -16,6 +21,11 @@ async function register() {
 
   if (!username.value.trim() || !email.value.trim() || !password.value) {
     error.value = 'Bitte Benutzername, E-Mail und Passwort eingeben.'
+    return
+  }
+
+  if (new TextEncoder().encode(password.value).length > 72) {
+    error.value = 'Das Passwort ist zu lang. Bitte wähle ein kürzeres Passwort.'
     return
   }
 
@@ -35,7 +45,7 @@ async function register() {
     })
 
     if (response.status === 400) {
-      // Das Backend liefert bei bereits vergebenen Daten eine Textantwort.
+      // Die bekannten Textantworten werden in konkrete deutsche Hinweise für das Formular übersetzt.
       const message = (await response.text()).trim()
 
       if (message === 'Username already exists') {
@@ -54,6 +64,7 @@ async function register() {
     }
 
     password.value = ''
+    showPassword.value = false
     // Nur die Bestätigung wird übergeben; Zugangsdaten gehören nicht in die URL.
     await router.push({ name: 'login', query: { registered: '1' } })
   } catch (err) {
@@ -69,110 +80,38 @@ async function register() {
 </script>
 
 <template>
-  <main class="register-page">
-    <form class="register-box" :aria-busy="submitting" @submit.prevent="register">
-      <h1>Team Workspace</h1>
-      <h2>Registrierung</h2>
-
+  <AuthLayout>
+    <header class="auth-heading">
+      <h1>Konto erstellen</h1>
+      <p>Mit deinem Konto kannst du Teams erstellen und in anderen Teams mitarbeiten.</p>
+    </header>
+    <form class="auth-form" :aria-busy="submitting" @submit.prevent="register">
       <div class="field">
         <label for="username">Benutzername</label>
-        <input
-          id="username"
-          v-model="username"
-          name="username"
-          type="text"
-          autocomplete="username"
-          placeholder="Benutzername"
-          :disabled="submitting"
-          required
-        />
+        <input id="username" v-model="username" name="username" type="text" autocomplete="username"
+          placeholder="Dein Benutzername" maxlength="255" :disabled="submitting" required />
       </div>
-
       <div class="field">
         <label for="email">E-Mail</label>
-        <input
-          id="email"
-          v-model="email"
-          name="email"
-          type="email"
-          autocomplete="email"
-          placeholder="E-Mail"
-          :disabled="submitting"
-          required
-        />
+        <input id="email" v-model="email" name="email" type="email" autocomplete="email"
+          placeholder="name@beispiel.de" maxlength="255" :disabled="submitting" required />
       </div>
-
       <div class="field">
         <label for="password">Passwort</label>
-        <input
-          id="password"
-          v-model="password"
-          name="password"
-          type="password"
-          autocomplete="new-password"
-          placeholder="Passwort"
-          :disabled="submitting"
-          required
-        />
+        <div class="password-field">
+          <input id="password" v-model="password" name="password" :type="showPassword ? 'text' : 'password'"
+            autocomplete="new-password" placeholder="Wähle ein Passwort" :disabled="submitting" required />
+          <button type="button" class="password-toggle" :aria-pressed="showPassword"
+            :aria-label="showPassword ? 'Passwort verbergen' : 'Passwort anzeigen'"
+            :disabled="submitting" @click="showPassword = !showPassword">
+            <UiIcon :name="showPassword ? 'eyeOff' : 'eye'" />
+            {{ showPassword ? 'Verbergen' : 'Anzeigen' }}
+          </button>
+        </div>
       </div>
-
-      <button type="submit" :disabled="submitting">
-        {{ submitting ? 'Account wird erstellt …' : 'Account erstellen' }}
-      </button>
-
-      <p v-if="error" class="error" role="alert">
-        {{ error }}
-      </p>
-
-      <p>
-        Bereits registriert?
-        <RouterLink :to="{ name: 'login' }">Anmelden</RouterLink>
-      </p>
+      <p v-if="error" class="error" role="alert">{{ error }}</p>
+      <button type="submit" class="button" :disabled="submitting">{{ submitting ? 'Konto wird erstellt …' : 'Konto erstellen' }}<UiIcon name="arrow" /></button>
     </form>
-  </main>
+    <p class="auth-switch">Du hast schon ein Konto? <RouterLink :to="{ name: 'login' }">Anmelden</RouterLink></p>
+  </AuthLayout>
 </template>
-
-<style scoped>
-.register-page {
-  max-width: 400px;
-  margin: 80px auto;
-  padding: 20px;
-}
-
-.register-box {
-  display: grid;
-  gap: 15px;
-}
-
-.field {
-  display: grid;
-  gap: 6px;
-}
-
-input,
-button {
-  width: 100%;
-  min-width: 0;
-  padding: 12px;
-  font: inherit;
-}
-
-button {
-  cursor: pointer;
-}
-
-button:disabled {
-  cursor: wait;
-  opacity: 0.7;
-}
-
-.error {
-  color: #c62828;
-}
-
-@media (prefers-color-scheme: dark) {
-  .error {
-    color: #ff8a80;
-  }
-}
-</style>

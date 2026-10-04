@@ -6,6 +6,7 @@ import { authGuard } from '../src/router/authGuard.js'
 import { useAuthStore } from '../src/stores/auth.js'
 import { requestTeams } from '../src/api/teams.js'
 
+// Diese Tests prüfen die Navigation mit einem eigenen Store und einem nachgebildeten Sitzungsspeicher.
 const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage')
 let savedValues
 
@@ -28,6 +29,8 @@ afterEach(() => {
   else delete globalThis.sessionStorage
 })
 
+// Für den Frontend-Guard genügt ein lesbarer Testtoken mit Ablaufzeit.
+// Seine Signatur ist absichtlich unecht; die kryptografische Prüfung liegt in den Backend-Tests.
 function makeToken(expiresAt = Math.floor(Date.now() / 1000) + 3600) {
   const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url')
   return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: '7', username: 'test-user', exp: expiresAt })}.testSignature`
@@ -37,6 +40,7 @@ function saveSession(token = makeToken()) {
   savedValues.set('auth', JSON.stringify({ token, username: 'test-user', userId: 7 }))
 }
 
+// Die Speicher-History prüft echte Routerwechsel, ohne die Browseradresse oder Vue-Seiten zu laden.
 function makeRouter() {
   const component = { template: '<div />' }
   const router = createRouter({

@@ -6,6 +6,8 @@ import ProjectsView from '../views/ProjectsView.vue'
 import ProjectTasksView from '../views/ProjectTasksView.vue'
 import { authGuard } from './authGuard'
 
+// Die URL bildet den Weg durch die Anwendung ab: Teams → Projekte → Aufgaben.
+// requiresAuth markiert Seiten, die der gemeinsame Guard nur mit gültiger Sitzung öffnet.
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -44,6 +46,7 @@ const router = createRouter({
   ],
 })
 
+// Ein zentraler Guard hält die Anmelderegeln für alle geschützten Seiten zusammen.
 router.beforeEach(authGuard)
 
 export default router

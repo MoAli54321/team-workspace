@@ -6,5 +6,6 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 
-// Startet Vue mit App.vue als Hauptkomponente im Element #app aus index.html.
+// Pinia wird vor dem Router eingebunden, damit dessen Guard den Auth-Store bereits verwenden kann.
+// App.vue stellt anschließend den Platz für die zur URL passende Seite bereit.
 createApp(App).use(createPinia()).use(router).mount('#app')

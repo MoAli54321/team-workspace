@@ -3,6 +3,8 @@ import { afterEach, beforeEach, mock, test } from 'node:test'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAuthStore } from '../src/stores/auth.js'
 
+// Der Sitzungsspeicher wird im Test durch eine Map ersetzt, damit kein Browser nötig ist.
+// Nach jedem Test wird die ursprüngliche Umgebung wiederhergestellt.
 const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage')
 const loginResponse = {
   message: 'Login successful',
@@ -20,6 +22,7 @@ const expectedSession = {
 const emptySession = { token: '', username: '', userId: null }
 let savedValues
 
+// Jeder Test beginnt mit einem neuen Store und einem leeren Speicher.
 beforeEach(() => {
   savedValues = new Map()
   Object.defineProperty(globalThis, 'sessionStorage', {
