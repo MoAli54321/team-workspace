@@ -11,7 +11,6 @@ public class RegisterRequest {
     // Klartext aus der Anfrage; der Controller erzeugt daraus vor dem Speichern einen BCrypt-Hash.
     private String password;
 
-    // Getter und Setter ermöglichen den Zugriff auf die Felder und das Einlesen der JSON-Daten.
     public String getUsername() {
         return username;
     }

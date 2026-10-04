@@ -19,6 +19,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Prüft, dass Aufgaben einem Projekt gehören und Teamrechte auch bei direktem Zugriff über die ID gelten.
+ * Das Testprofil nutzt H2; die Testtransaktion wird nach jedem Test zurückgerollt.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -148,7 +152,7 @@ class TaskProjectIntegrationTests {
 
         mvc.perform(delete("/api/tasks/" + taskId)
                         .header("Authorization", bearer(member)))
-                .andExpect(status().isOk());
+                .andExpect(status().isNoContent());
         assertThat(taskRepository.existsById(taskId)).isFalse();
     }
 
@@ -235,6 +239,8 @@ class TaskProjectIntegrationTests {
                 """.formatted(title);
     }
 
+    // Ein echter signierter Testtoken richtet den Test auf die Berechtigungsprüfung aus.
+    // Der Login selbst wird getrennt in AuthIntegrationTests geprüft.
     private String bearer(User user) {
         return "Bearer " + jwtService.createToken(user);
     }

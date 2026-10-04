@@ -11,12 +11,11 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-// JPA bildet Benutzerobjekte auf Datensätze in der Tabelle users ab.
+/** Benutzerkonto für die Anmeldung. Teamrollen stehen in TeamMember und können je Team unterschiedlich sein. */
 @Entity
 @Table(name = "users")
 public class User {
 
-    // Die Datenbank vergibt den Primärschlüssel beim Anlegen eines Benutzers.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -36,11 +35,9 @@ public class User {
     // Initialwert beim Erzeugen des Java-Objekts; JPA lädt für bestehende Benutzer den DB-Wert.
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    // JPA benötigt diesen parameterlosen Konstruktor zum Laden gespeicherter Benutzer.
     public User() {
     }
 
-    // Getter lesen die Werte; Setter werden unter anderem bei der Registrierung verwendet.
     public Long getId() {
         return id;
     }

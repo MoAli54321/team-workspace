@@ -4,10 +4,7 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-/**
- * Datenbankzugriff für Benutzer mit einer ID vom Typ Long.
- * Spring Data JPA leitet die zusätzlichen Abfragen aus den Methodennamen ab.
- */
+/** Sucht Benutzer für Anmeldung und Registrierung. */
 public interface UserRepository extends JpaRepository<User, Long> {
 
     // Optional enthält den gefundenen Benutzer oder ist leer, wenn es keinen Treffer gibt.

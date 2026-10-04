@@ -42,6 +42,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Prüft Registrierung, Login und JWT-Schutz über die echte Spring-Security-Filterkette.
+ * Das Testprofil nutzt H2; die Testtransaktion wird nach jedem Test zurückgerollt.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")

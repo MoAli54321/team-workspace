@@ -9,17 +9,15 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-// JPA bildet Team-Objekte auf Datensätze in der Tabelle teams ab.
+/** Gemeinsamer Arbeitsbereich: Projekte gehören zum Team, Benutzer werden über TeamMember zugeordnet. */
 @Entity
 @Table(name = "teams")
 public class Team {
 
-    // Die Datenbank vergibt die ID beim ersten Speichern.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Ein Teamname darf in der Datenbank nicht null sein.
     @Column(nullable = false)
     private String name;
 
@@ -29,7 +27,6 @@ public class Team {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    // JPA benötigt einen parameterlosen Konstruktor zum Laden gespeicherter Teams.
     public Team() {
     }
 

@@ -13,8 +13,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+/**
+ * Verwaltet Aufgaben eines Projekts. Für jeden Zugriff zählt die Mitgliedschaft im zugehörigen Team,
+ * auch wenn eine Aufgabe direkt über ihre ID bearbeitet oder gelöscht wird.
+ */
 @RestController
 public class TaskController {
 
@@ -43,9 +48,16 @@ public class TaskController {
     @Transactional
     public Task createTask(
             @PathVariable Long projectId,
-            @RequestBody Task task,
+            @RequestBody Task request,
             @AuthenticationPrincipal Jwt jwt) {
         Project project = getProjectForMember(projectId, jwt);
+        RequestValidation.task(request);
+        // Eine übermittelte ID darf keine bestehende Aufgabe überschreiben.
+        Task task = new Task();
+        task.setTitle(request.getTitle());
+        task.setDescription(request.getDescription());
+        task.setStatus(request.getStatus());
+        task.setPriority(request.getPriority());
         task.setProject(project);
         return taskRepository.save(task);
     }
@@ -57,7 +69,9 @@ public class TaskController {
             @RequestBody Task updatedTask,
             @AuthenticationPrincipal Jwt jwt) {
         Task task = getTaskForMember(id, jwt);
+        RequestValidation.task(updatedTask);
 
+        // Nur die bearbeitbaren Inhalte werden übernommen. Die Projektzuordnung bleibt erhalten.
         task.setTitle(updatedTask.getTitle());
         task.setDescription(updatedTask.getDescription());
         task.setStatus(updatedTask.getStatus());
@@ -67,6 +81,7 @@ public class TaskController {
     }
 
     @DeleteMapping("/api/tasks/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     @Transactional
     public void deleteTask(
             @PathVariable Long id,
@@ -75,6 +90,8 @@ public class TaskController {
         taskRepository.delete(task);
     }
 
+    // Der Zugriff wird bei jeder Anfrage neu geprüft. Ein entferntes Mitglied verliert dadurch
+    // den Zugang auch dann, wenn sein JWT noch nicht abgelaufen ist.
     private Project getProjectForMember(Long projectId, Jwt jwt) {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -98,6 +115,8 @@ public class TaskController {
                         HttpStatus.NOT_FOUND,
                         "Task nicht gefunden"));
 
+        // Alte Aufgaben können noch ohne Projekt gespeichert sein. Ohne Teamzuordnung
+        // lässt sich kein Zugriffsrecht prüfen, deshalb werden diese Aufgaben hier nicht freigegeben.
         if (task.getProject() == null) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -108,6 +127,7 @@ public class TaskController {
         return task;
     }
 
+    // Eine fehlende oder nicht numerische Benutzer-ID wird als ungültige Anmeldung behandelt.
     private Long getAuthenticatedUserId(Jwt jwt) {
         try {
             return Long.valueOf(jwt.getSubject());

@@ -3,6 +3,7 @@ package com.teamworkspace.backend;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
+/** Ein Vorhaben innerhalb eines Teams. Die Aufgaben verweisen auf das Projekt über project_id. */
 @Entity
 @Table(name = "projects")
 public class Project {
@@ -18,6 +19,7 @@ public class Project {
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    // Über das Team werden die Zugriffsrechte für das Projekt und seine Aufgaben bestimmt.
     @ManyToOne(optional = false)
     @JoinColumn(name = "team_id", nullable = false)
     private Team team;

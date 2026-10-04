@@ -1,7 +1,10 @@
 package com.teamworkspace.backend;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -18,6 +21,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Prüft Projektzugriffe und das Löschen samt Aufgaben, ohne andere Projekte zu verändern.
+ * Das Testprofil nutzt H2; die Testtransaktion wird nach jedem Test zurückgerollt.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -32,6 +39,9 @@ class ProjectIntegrationTests {
 
     @Autowired
     private ProjectRepository projectRepository;
+
+    @Autowired
+    private TaskRepository taskRepository;
 
     @Autowired
     private JwtService jwtService;
@@ -114,6 +124,88 @@ class ProjectIntegrationTests {
                 .andExpect(jsonPath("$[0].name").value("First Project"));
     }
 
+    @Test
+    void ownerCanDeleteProjectAndItsTasksWithoutAffectingOtherProjects() throws Exception {
+        long teamId = createTeam("Delete Team");
+        long projectId = JsonPath.<Number>read(createProject(teamId, owner, "Delete me"), "$.id").longValue();
+        long otherId = JsonPath.<Number>read(createProject(teamId, owner, "Keep me"), "$.id").longValue();
+        Task task = createTask(projectId);
+        Task otherTask = createTask(otherId);
+
+        mvc.perform(delete("/api/teams/" + teamId + "/projects/" + projectId)
+                        .header("Authorization", bearer(owner)))
+                .andExpect(status().isNoContent());
+        projectRepository.flush();
+
+        assertThat(projectRepository.existsById(projectId)).isFalse();
+        assertThat(taskRepository.existsById(task.getId())).isFalse();
+        assertThat(projectRepository.existsById(otherId)).isTrue();
+        assertThat(taskRepository.existsById(otherTask.getId())).isTrue();
+        mvc.perform(get("/api/teams/" + teamId + "/projects").header("Authorization", bearer(owner)))
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(otherId));
+    }
+
+    @Test
+    void ownerCanDeleteAnEmptyProject() throws Exception {
+        long teamId = createTeam("Empty Team");
+        long projectId = JsonPath.<Number>read(createProject(teamId, owner, "Empty"), "$.id").longValue();
+        mvc.perform(delete("/api/teams/" + teamId + "/projects/" + projectId)
+                        .header("Authorization", bearer(owner)))
+                .andExpect(status().isNoContent());
+        projectRepository.flush();
+        assertThat(projectRepository.existsById(projectId)).isFalse();
+    }
+
+    @Test
+    void memberAndOutsiderCannotDeleteProject() throws Exception {
+        long teamId = createTeam("Private Team");
+        addMember(teamId, member);
+        long projectId = JsonPath.<Number>read(createProject(teamId, member, "Keep"), "$.id").longValue();
+        Task task = createTask(projectId);
+        for (User user : List.of(member, outsider)) {
+            mvc.perform(delete("/api/teams/" + teamId + "/projects/" + projectId)
+                            .header("Authorization", bearer(user)))
+                    .andExpect(status().isForbidden());
+        }
+        assertThat(projectRepository.existsById(projectId)).isTrue();
+        assertThat(taskRepository.existsById(task.getId())).isTrue();
+    }
+
+    @Test
+    void deletionIsScopedToTheTeamInTheUrl() throws Exception {
+        long firstTeam = createTeam("First");
+        long secondTeam = createTeam("Second");
+        long projectId = JsonPath.<Number>read(createProject(secondTeam, owner, "Keep"), "$.id").longValue();
+        mvc.perform(delete("/api/teams/" + firstTeam + "/projects/" + projectId)
+                        .header("Authorization", bearer(owner)))
+                .andExpect(status().isNotFound());
+        assertThat(projectRepository.existsById(projectId)).isTrue();
+    }
+
+    @Test
+    void deletingUnknownProjectOrTeamReturnsNotFound() throws Exception {
+        long teamId = createTeam("Known Team");
+        mvc.perform(delete("/api/teams/" + teamId + "/projects/999999")
+                        .header("Authorization", bearer(owner)))
+                .andExpect(status().isNotFound());
+        mvc.perform(delete("/api/teams/999999/projects/999999")
+                        .header("Authorization", bearer(owner)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void projectDeletionRequiresAuthentication() throws Exception {
+        mvc.perform(delete("/api/teams/1/projects/1")).andExpect(status().isUnauthorized());
+    }
+
+    private Task createTask(long projectId) {
+        Task task = new Task();
+        task.setTitle("Project task");
+        task.setProject(projectRepository.findById(projectId).orElseThrow());
+        return taskRepository.saveAndFlush(task);
+    }
+
     private User createUser(String username, String email) {
         User user = new User();
         user.setUsername(username);
@@ -157,6 +249,8 @@ class ProjectIntegrationTests {
                 .andReturn().getResponse().getContentAsString();
     }
 
+    // Ein echter signierter Testtoken richtet den Test auf die Berechtigungsprüfung aus.
+    // Der Login selbst wird getrennt in AuthIntegrationTests geprüft.
     private String bearer(User user) {
         return "Bearer " + jwtService.createToken(user);
     }

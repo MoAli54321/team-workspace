@@ -19,6 +19,7 @@ import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
+/** Prüft die Tokenprüfung und ihre Konfiguration ohne Datenbank oder gestarteten Webserver. */
 class JwtServiceTests {
 
     // Ausschließlich ein öffentlicher Testschlüssel.
@@ -52,6 +53,7 @@ class JwtServiceTests {
         String token = new JwtService(SECRET, 3600).createToken(testUser());
         NimbusJwtDecoder decoder = decoder(SECRET);
         JwtTimestampValidator timestamps = new JwtTimestampValidator(Duration.ZERO);
+        // Eine versetzte Uhr prüft den Ablauf sofort, ohne den Test eine Stunde warten zu lassen.
         timestamps.setClock(Clock.offset(Clock.systemUTC(), Duration.ofSeconds(3601)));
         decoder.setJwtValidator(timestamps);
 

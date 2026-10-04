@@ -18,7 +18,10 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.stereotype.Service;
 
-/** Erstellt JWTs beim Login und prüft sie für Spring Security bei API-Anfragen. */
+/**
+ * Erstellt signierte JWTs für angemeldete Benutzer und prüft eingehende Tokens für Spring Security.
+ * Die Signatur schützt vor Änderungen; der Token-Inhalt selbst ist lesbar und nicht verschlüsselt.
+ */
 @Service
 public class JwtService implements JwtDecoder {
 
@@ -30,6 +33,7 @@ public class JwtService implements JwtDecoder {
     public JwtService(
             @Value("${jwt.secret}") String encodedSecret,
             @Value("${jwt.expiration-seconds}") long expirationSeconds) {
+        // Die Konfiguration liefert den Schlüssel als Base64-Text; zum Signieren brauchen wir die Bytes.
         byte[] secret;
         try {
             secret = Base64.getDecoder().decode(encodedSecret);
@@ -53,7 +57,8 @@ public class JwtService implements JwtDecoder {
         NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withSecretKey(key)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
-        // Prüft neben der Signatur auch Ablaufzeit, ggf. nbf und den erwarteten Aussteller.
+        // Zusätzlich zur Signatur werden die Gültigkeitszeiten und der Aussteller geprüft.
+        // Ein vorhandenes nbf-Feld legt fest, ab welchem Zeitpunkt der Token benutzt werden darf.
         jwtDecoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(ISSUER));
         this.decoder = jwtDecoder;
         this.expirationSeconds = expirationSeconds;
@@ -62,7 +67,8 @@ public class JwtService implements JwtDecoder {
     public String createToken(User user) {
         Instant now = Instant.now();
 
-        // sub identifiziert den Benutzer. Ein JWT enthält weder Passwort noch Passwort-Hash.
+        // sub ist die Benutzer-ID. Teamrollen stehen bewusst nicht im Token:
+        // Die Controller lesen Mitgliedschaften aktuell aus der Datenbank, damit Änderungen sofort greifen.
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(ISSUER)
                 .subject(user.getId().toString())
@@ -79,6 +85,7 @@ public class JwtService implements JwtDecoder {
         return expirationSeconds;
     }
 
+    // Spring Security ruft diese Methode für eingehende Bearer-Tokens auf.
     @Override
     public Jwt decode(String token) {
         return decoder.decode(token);

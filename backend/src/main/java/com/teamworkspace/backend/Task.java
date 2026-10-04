@@ -3,12 +3,11 @@ package com.teamworkspace.backend;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-// JPA bildet diese Klasse auf die Datenbanktabelle tasks ab.
+/** Eine Aufgabe gehört zu einem Projekt; dessen Team bestimmt, wer sie lesen und bearbeiten darf. */
 @Entity
 @Table(name = "tasks")
 public class Task {
 
-    // Primärschlüssel: Die Datenbank erzeugt die ID beim Einfügen einer neuen Aufgabe.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -17,10 +16,10 @@ public class Task {
 
     private String description;
 
-    // Das Frontend verwendet TODO, IN_PROGRESS und DONE; hier wird freier Text gespeichert.
+    // Das Frontend verwendet TODO, IN_PROGRESS und DONE; die API prüft diese Werte vor dem Speichern.
     private String status;
 
-    // Das Frontend verwendet LOW, MEDIUM und HIGH; auch dieses Feld ist ein String.
+    // Das Frontend verwendet LOW, MEDIUM und HIGH; die API akzeptiert nur diese drei Werte.
     private String priority;
 
     // Initialwert beim Erzeugen des Java-Objekts; beim Laden ersetzt JPA ihn durch den DB-Wert.
@@ -31,11 +30,9 @@ public class Task {
     @JoinColumn(name = "project_id")
     private Project project;
 
-    // JPA benötigt einen parameterlosen Konstruktor, um Datensätze als Objekte zu laden.
     public Task() {
     }
 
-    // Getter geben Feldwerte zurück; Setter übernehmen Änderungen, etwa aus dem Controller.
     public Long getId() {
         return id;
     }
