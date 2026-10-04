@@ -1,85 +1,61 @@
-# .
+# Team Workspace Frontend
 
-This template should help get you started developing with Vue 3 in Vite.
+Die Oberfläche verwendet Vue 3, JavaScript, Vue Router und Pinia.
 
-## Recommended IDE Setup
+## Lokal starten
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+Voraussetzung: Node.js gemäß `engines` in `package.json` und ein laufendes Backend
+auf Port 8081. Im Ordner `frontend`:
 
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
-npm install
+```powershell
+npm.cmd ci
+npm.cmd run dev
 ```
 
-### Compile and Hot-Reload for Development
+Die Anwendung ist unter `http://localhost:5173` erreichbar. Vite leitet Anfragen
+an `/api` an das Backend weiter. Die `.cmd`-Befehle funktionieren auch dann, wenn
+PowerShell die Ausführung von `npm.ps1` blockiert.
 
-```sh
-npm run dev
+## Seiten und Bedienung
+
+| Route | Inhalt |
+| --- | --- |
+| `/login` | Anmeldung mit Benutzername oder E-Mail |
+| `/register` | Konto erstellen |
+| `/dashboard` | Eigene Teams anzeigen und erstellen; Besitzer können Teams löschen |
+| `/teams/:teamId/projects` | Projekte anzeigen, erstellen und als Besitzer löschen |
+| `/teams/:teamId/projects?tab=members` | Mitglieder anzeigen; Besitzer können Personen hinzufügen und entfernen |
+| `/projects/:projectId/tasks` | Aufgaben erstellen, bearbeiten und löschen |
+
+Alle Teammitglieder dürfen Projekte erstellen und Aufgaben bearbeiten. Vor dem
+Löschen erscheint eine Bestätigung. Das Löschen eines Teams entfernt auch seine
+Projekte und Aufgaben; das Löschen eines Projekts entfernt dessen Aufgaben.
+Benutzerkonten bleiben beim Entfernen von Mitgliedschaften erhalten.
+
+## Codeaufbau
+
+- `views/` enthält die Seiten und ihre Formulare.
+- `components/` enthält den gemeinsamen Seitenrahmen, Symbole und Löschdialog.
+- `api/` enthält die Aufrufe für Teams, Projekte und Aufgaben.
+- `stores/auth.js` verwaltet Anmeldung und Abmeldung.
+- `router/authGuard.js` leitet bei fehlender oder abgelaufener Sitzung zum Login.
+- `assets/` enthält gemeinsame Farben, Abstände und Regeln für schmale Bildschirme.
+
+Der Auth-Store speichert Token, Benutzername und Benutzer-ID gemeinsam im
+`sessionStorage`; das Passwort wird nicht gespeichert. Der API-Helfer ergänzt
+den Bearer-Header. Eine Antwort mit HTTP 401 beendet die betroffene lokale Sitzung.
+Die verbindliche Prüfung von JWT und Teamrechten erfolgt im Backend.
+
+## Prüfen und bauen
+
+```powershell
+npm.cmd test
+npm.cmd run build
 ```
 
-### Compile and Minify for Production
+Die automatisierten Tests prüfen Auth-Store, Router-Guard und API-Helfer mit
+simulierten Antworten. Sie sind keine vollständigen Browser-Tests. Der Build
+landet in `dist/`. Der Vite-Proxy gilt nur für die lokale Entwicklung.
 
-```sh
-npm run build
-```
-
-## Login und Auth-Store
-
-Pinia wird in `src/main.js` eingebunden. Der Store `src/stores/auth.js` führt den
-Login aus und speichert nach einer erfolgreichen Antwort `token`, `username` und
-`userId` als gemeinsamen JSON-Eintrag `auth` im `sessionStorage`. Das Passwort
-wird nicht gespeichert. Beim erneuten Erzeugen des Stores, beispielsweise nach
-einem Neuladen, werden die Daten aus diesem Eintrag wiederhergestellt.
-
-`LoginView.vue` leitet erst nach erfolgreichem Speichern zum Dashboard weiter.
-Eine Antwort ohne Token, ein fehlgeschlagener Login oder ein Speicherfehler
-wird als Fehlermeldung angezeigt. Das Backend muss dafür bereits mit der
-JWT-Erzeugung und gesetztem `JWT_SECRET` neu gestartet worden sein; siehe
+Weitere Startvoraussetzungen stehen in der [Root-README](../README.md) und der
 [Backend-Anleitung](../backend/README.md).
-
-`src/api/tasks.js` liest bei jeder Task-Anfrage den aktuellen Token aus dem
-Auth-Store und ergänzt `Authorization: Bearer <token>`. Alle GET-, POST-, PUT-
-und DELETE-Anfragen aus dem Dashboard verwenden diesen Helfer. Ohne Token
-wird kein leerer Bearer-Header gesendet. Ein HTTP 401 entfernt die abgewiesene
-Sitzung; das Dashboard leitet daraufhin zum Login weiter. Eine verspätete
-Antwort einer alten Sitzung meldet einen inzwischen neu angemeldeten Benutzer
-nicht ab. Andere HTTP-Fehler behandelt weiterhin die jeweilige Task-Funktion.
-
-Das Backend schützt `/api/tasks` und alle Unterpfade durch JWT-Prüfung.
-Der Router-Guard in `src/router/authGuard.js` nutzt den Auth-Store:
-
-- `/dashboard` erfordert über `meta.requiresAuth` eine lokale Sitzung mit einem
-  lesbaren, noch nicht abgelaufenen JWT. Andernfalls geht es zu `/login`.
-- Mit einer solchen Sitzung führen `/login` und `/register` zu `/dashboard`.
-- Beschädigte oder abgelaufene Tokens verhindern die Navigation nicht.
-
-Der Logout-Button im Dashboard leert über `authStore.logout()` den Store und
-entfernt nur den Eintrag `auth` aus dem `sessionStorage`. Die Aufgabenanzeige
-wird geleert und die aktuelle Route durch `/login` ersetzt. Ein erneuter
-Dashboard-Aufruf oder Neuladen stellt die alte Sitzung nicht wieder her.
-
-Die lokale Ablaufprüfung dient der Benutzerführung; die verbindliche
-Signatur- und Ablaufprüfung bleibt im Backend. Logout beendet die lokale
-Sitzung, widerruft aber keinen bereits ausgestellten JWT auf dem Server.
-
-Die Frontend-Tests prüfen mit simulierten HTTP-Antworten und Sitzungsspeicher
-das Speichern, Wiederherstellen, Logout, die Weiterleitungen mit Vue Router,
-die Bearer-Header aller Task-Methoden und die Fehlerfälle:
-
-```sh
-npm test
-```

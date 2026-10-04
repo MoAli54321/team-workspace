@@ -8,13 +8,16 @@ Team Workspace is a full-stack web application for managing teams, projects, and
 - BCrypt password hashing
 - JWT authentication
 - Protected frontend routes and backend endpoints
-- Team creation
+- Team creation and owner-controlled deletion, including projects and tasks
 - Team membership with `OWNER` and `MEMBER` roles
+- Member list with owner-controlled adding and removal
 - Project management inside teams
+- Owner-controlled project deletion, including its tasks
 - Task management inside projects
 - Task status and priority
 - PostgreSQL persistence
 - Logout and session handling
+- Password visibility toggle on login and registration
 
 ## Tech Stack
 
@@ -64,6 +67,7 @@ Users can only see teams they belong to. Team membership controls access to the 
 - `/register`
 - `/dashboard`
 - `/teams/:teamId/projects`
+- `/teams/:teamId/projects?tab=members`
 - `/projects/:projectId/tasks`
 
 ### Backend
@@ -71,19 +75,24 @@ Users can only see teams they belong to. Team membership controls access to the 
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `GET|POST /api/teams`
-- `POST /api/teams/{teamId}/members`
+- `DELETE /api/teams/{teamId}`
+- `GET|POST /api/teams/{teamId}/members`
+- `DELETE /api/teams/{teamId}/members/{userId}`
 - `GET|POST /api/teams/{teamId}/projects`
+- `DELETE /api/teams/{teamId}/projects/{projectId}`
 - `GET|POST /api/projects/{projectId}/tasks`
 - `PUT|DELETE /api/tasks/{taskId}`
 
 All team, project, and task endpoints require a valid JWT bearer token.
+
+Open a team to switch between projects and members. Only the team owner can add or remove members and delete projects or the team. Adding a member requires an existing account, identified by username or email. Removing someone revokes their team access without deleting their account. The owner cannot be removed. Deleting a project removes its tasks; deleting a team removes all its projects, tasks, and memberships. The interface asks for confirmation before deleting.
 
 ## Local Development
 
 ### Requirements
 
 - Java 17
-- Node.js `22.18.x` or `24.12.0` and newer, as defined in `frontend/package.json`
+- Node.js `^22.12.0` or `>=24.0.0`, as defined in `frontend/package.json`
 - PostgreSQL with a database named `team_workspace`
 
 ### Backend
@@ -118,8 +127,8 @@ In a second terminal:
 
 ```powershell
 cd frontend
-npm install
-npm run dev
+npm.cmd ci
+npm.cmd run dev
 ```
 
 The frontend runs at `http://localhost:5173` and proxies `/api` requests to the backend.
@@ -137,8 +146,8 @@ Frontend:
 
 ```powershell
 cd frontend
-npm test
-npm run build
+npm.cmd test
+npm.cmd run build
 ```
 
 ## Status
